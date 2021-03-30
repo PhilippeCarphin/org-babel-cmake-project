@@ -1,0 +1,184 @@
+#+TITLE: Complex example with babel
+#+OPTIONS: toc:2
+#+REVEAL_MIN_SCALE: 0.1
+#+REVEAL_HLEVEL: 3
+
+* Introduction
+The =:tangle= header argument allows us to use source blocks to create files.
+
+We demonstrate this by documenting the creation of a CMake project.
+
+We also use the =:noweb yes= header arg to enable literate programming syntax.
+
+* Creating files
+** Source File
+We create the following source code file (=C-c C-v C-t= to generate the files
+from blocks with a =:tangle= header arg.
+
+#+begin_src c :tangle main.c
+#include <stdio.h>
+int main(int argc, char **argv) {
+    puts("Hello World\n");
+    return 0;
+}
+#+end_src
+
+** CMakeLists.txt
+Then we create =CMakeLists.txt= in the same way
+
+#+begin_src cmake :tangle CMakeLists.txt 
+cmake_minimum_required(VERSION 3.10)
+project(babel_demo C)
+add_executable(main main.c)
+#+end_src
+
+** Enabling testing
+#+begin_src cmake :tangle CMakeLists.txt
+enable_testing()
+#+end_src
+
+This adds another build target, which is test for Makefile generators.
+or RUN_TESTS for integrated development environments (like Visual Studio).
+** Adding a library
+Let's add a library
+
+#+name: libname
+#+begin_src ascii :exports none
+mylibrary
+#+end_src
+#+name: my_function
+#+begin_src c :exports none
+int my_function(int a, int b)
+#+end_src
+
+We create a header
+#+begin_src c :noweb yes :results none :tangle mylibrary.h
+#ifndef INCLUDE_GUARD_<<libname>>
+#define INCLUDE_GUARD_<<libname>>
+<<my_function>>;
+#endif // INCLUDE_GUARD_<<libname>>
+#+end_src
+
+And an implementation
+#+begin_src c :noweb yes :results none :tangle mylibrary.c
+#include <stdio.h>
+<<my_function>>{
+  const int sum = a + b;
+  printf("The sum of %d and %d is %d\n", a,b,sum);
+  return sum;
+}
+#+end_src
+
+#+begin_src cmake :tangle CMakeLists.txt :noweb yes
+add_library(<<libname>> SHARED <<libname>>.c)
+#+end_src
+
+#+begin_src shell :results output
+cd build
+make
+#+end_src
+
+#+RESULTS:
+: Consolidate compiler generated dependencies of target mylibrary
+: [ 33%] Built target mylibrary
+: Consolidate compiler generated dependencies of target tfm
+: [ 66%] Built target tfm
+: Consolidate compiler generated dependencies of target main
+: [100%] Built target main
+
+** Adding CTest
+*** Creating test source code
+#+begin_src c :tangle testfile.c :noweb yes
+#include "<<libname>>.h"
+int main(int argc, char **argv){
+    int result = my_function(3,5) != 8;
+    return result;
+}
+#+end_src
+*** Adding CMake target
+#+begin_src cmake :tangle CMakeLists.txt :noweb yes
+add_executable(tfm testfile.c)
+target_link_libraries(tfm PRIVATE <<libname>>)
+#+end_src
+
+*** Add our test
+#+begin_src cmake :tangle CMakeLists.txt :noweb yes
+add_test(test_my_function tfm)
+#+end_src
+
+* Building
+The documentation fun doesn't stop here!  We can now document how we are going
+to run the commands to build this project
+
+** CMake
+#+begin_src shell :results output :exports both
+echo "PWD is $PWD"
+rm -rf ./build
+mkdir -p ./build
+cd build
+cmake .. 2>&1
+#+end_src
+#+ATTR_REVEAL: split
+#+RESULTS:
+#+begin_example
+PWD is /Users/pcarphin/Documents/gtd/Notes/orgmode/babel_examples/cmake/cmake-project-with-ctest
+-- The C compiler identification is AppleClang 12.0.0.12000032
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /Library/Developer/CommandLineTools/usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /Users/pcarphin/Documents/gtd/Notes/orgmode/babel_examples/cmake/cmake-project-with-ctest/build
+#+end_example
+** Make
+#+begin_src shell :dir build :results output :exports both
+echo "PWD is $PWD"
+cd build
+make
+#+end_src
+
+#+RESULTS:
+#+begin_example
+PWD is /tmp/test/build
+[ 16%] Building C object CMakeFiles/mylibrary.dir/mylibrary.c.o
+[ 33%] Linking C shared library libmylibrary.dylib
+[ 33%] Built target mylibrary
+[ 50%] Building C object CMakeFiles/tfm.dir/testfile.c.o
+[ 66%] Linking C executable tfm
+[ 66%] Built target tfm
+[ 83%] Building C object CMakeFiles/main.dir/main.c.o
+[100%] Linking C executable main
+[100%] Built target main
+#+end_example
+
+* Testing
+** Make test
+#+begin_src shell :dir build :results output :exports both
+echo "PWD is $PWD"
+cd build
+make test 2>&1 || true
+#+end_src
+
+#+RESULTS:
+#+begin_example
+PWD is /tmp/test/build
+Running tests...
+Test project /tmp/test/build
+    Start 1: test_my_function
+1/1 Test #1: test_my_function .................***Failed    0.38 sec
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.38 sec
+
+The following tests FAILED:
+	  1 - test_my_function (Failed)
+Errors while running CTest
+Output from these tests are in: /tmp/test/build/Testing/Temporary/LastTest.log
+Use "--rerun-failed --output-on-failure" to re-run the failed cases verbosely.
+make: *** [test] Error 8
+#+end_example
+* References
+https://www.cs.tufts.edu/~nr/noweb/
